@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { GovSidebar } from '../components/layout/GovSidebar';
 import { GovMobileNav } from '../components/layout/GovMobileNav';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { useAuth } from '../context/AuthContext';
+import { ReportSummary } from '../types';
 import {
   BarChart3,
   Download,
@@ -15,18 +16,37 @@ import {
 } from 'lucide-react';
 
 export const GovReportsPage: React.FC = () => {
-  const { showToast } = useAuth();
+  const { fetchReportSummary, exportReport } = useAuth();
+  const [summary, setSummary] = useState<ReportSummary | null>(null);
 
-  const handleExport = (format: string) => {
-    showToast(`Generating and exporting official SITREP Report (${format})...`);
+  useEffect(() => {
+    let cancelled = false;
+    fetchReportSummary().then((s) => {
+      if (!cancelled && s) setSummary(s);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleExport = (format: 'csv' | 'pdf') => {
+    exportReport(format);
   };
 
-  const categories = [
-    { name: 'Food & Drinking Water Rations', count: 740, pct: 40, color: 'bg-emerald-500' },
-    { name: 'Medical First Aid & Insulin Aid', count: 480, pct: 26, color: 'bg-blue-500' },
-    { name: 'Rescue & Flood Boat Evacuations', count: 350, pct: 19, color: 'bg-red-500' },
-    { name: 'Shelter Accommodation & Bedding', count: 270, pct: 15, color: 'bg-purple-500' }
-  ];
+  const num = (n: number | undefined) => (n === undefined ? '--' : n.toLocaleString('en-IN'));
+  const categoryColors: Record<string, string> = {
+    food: 'bg-emerald-500',
+    medical: 'bg-blue-500',
+    rescue: 'bg-red-500',
+    shelter: 'bg-purple-500'
+  };
+  const categories = (summary?.categories ?? []).map((c) => ({
+    name: c.name,
+    count: c.count,
+    pct: c.pct,
+    color: categoryColors[c.key] ?? 'bg-slate-400'
+  }));
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row">
@@ -53,7 +73,7 @@ export const GovReportsPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => handleExport('CSV')}
+              onClick={() => handleExport('csv')}
               leftIcon={<Download className="w-4 h-4" />}
             >
               Export CSV
@@ -61,7 +81,7 @@ export const GovReportsPage: React.FC = () => {
             <Button
               variant="primary"
               size="sm"
-              onClick={() => handleExport('PDF')}
+              onClick={() => handleExport('pdf')}
               leftIcon={<Download className="w-4 h-4" />}
               className="bg-navy-900 hover:bg-navy-950"
             >
@@ -83,7 +103,7 @@ export const GovReportsPage: React.FC = () => {
                 </div>
               </div>
               <div className="text-3xl font-black text-emerald-700 font-mono">
-                99.8%
+                {summary ? `${summary.casualtiesAvertedPct}%` : '--'}
               </div>
               <span className="text-xs text-emerald-600 font-semibold mt-1 block">Timely evacuation success</span>
             </Card>
@@ -96,7 +116,7 @@ export const GovReportsPage: React.FC = () => {
                 </div>
               </div>
               <div className="text-3xl font-black text-navy-900 font-mono">
-                25,100+
+                {num(summary?.peopleAssisted)}
               </div>
               <span className="text-xs text-slate-400 mt-1 block">Evacuated &amp; provisioned</span>
             </Card>
@@ -109,9 +129,9 @@ export const GovReportsPage: React.FC = () => {
                 </div>
               </div>
               <div className="text-3xl font-black text-purple-700 font-mono">
-                1,420 / 1,840
+                {summary ? `${num(summary.requestsResolved)} / ${num(summary.requestsTotal)}` : '--'}
               </div>
-              <span className="text-xs text-slate-400 mt-1 block">77.2% overall clearance</span>
+              <span className="text-xs text-slate-400 mt-1 block">{summary ? summary.clearancePct : '--'}% overall clearance</span>
             </Card>
 
             <Card padding="md" className="bg-white border-slate-200">
@@ -122,7 +142,7 @@ export const GovReportsPage: React.FC = () => {
                 </div>
               </div>
               <div className="text-3xl font-black text-amber-700 font-mono">
-                14.2 min
+                {summary ? `${summary.avgResponseMinutes} min` : '--'}
               </div>
               <span className="text-xs text-slate-400 mt-1 block">From SOS trigger to field contact</span>
             </Card>
@@ -138,7 +158,7 @@ export const GovReportsPage: React.FC = () => {
                   <BarChart3 className="w-4 h-4 text-brand-600" />
                   Incident Category Distribution
                 </h3>
-                <span className="text-xs text-slate-500">1,840 Total Inflows</span>
+                <span className="text-xs text-slate-500">{num(summary?.requestsTotal)} Total Inflows</span>
               </div>
 
               <div className="space-y-3.5 pt-2">
@@ -173,25 +193,25 @@ export const GovReportsPage: React.FC = () => {
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
                   <div>
                     <span className="font-bold text-slate-900 block">Food Rations Dispatched</span>
-                    <span className="text-slate-500">45,000 packs distributed across 19 camps</span>
+                    <span className="text-slate-500">{num(summary?.logistics.foodPacks)} packs distributed across {summary?.logistics.campCount ?? '--'} camps</span>
                   </div>
-                  <span className="font-mono font-bold text-emerald-700 text-sm">45,000</span>
+                  <span className="font-mono font-bold text-emerald-700 text-sm">{num(summary?.logistics.foodPacks)}</span>
                 </div>
 
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
                   <div>
                     <span className="font-bold text-slate-900 block">Clean Drinking Water Bottles</span>
-                    <span className="text-slate-500">120,000 Liters delivered by NGO supply trucks</span>
+                    <span className="text-slate-500">{num(summary?.logistics.waterLitres)} Liters delivered by NGO supply trucks</span>
                   </div>
-                  <span className="font-mono font-bold text-blue-700 text-sm">120,000 L</span>
+                  <span className="font-mono font-bold text-blue-700 text-sm">{num(summary?.logistics.waterLitres)} L</span>
                 </div>
 
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
                   <div>
                     <span className="font-bold text-slate-900 block">Medical Trauma &amp; First Aid Kits</span>
-                    <span className="text-slate-500">3,200 kits provisioned to mobile doctors</span>
+                    <span className="text-slate-500">{num(summary?.logistics.medicalKits)} kits provisioned to mobile doctors</span>
                   </div>
-                  <span className="font-mono font-bold text-purple-700 text-sm">3,200</span>
+                  <span className="font-mono font-bold text-purple-700 text-sm">{num(summary?.logistics.medicalKits)}</span>
                 </div>
               </div>
             </Card>

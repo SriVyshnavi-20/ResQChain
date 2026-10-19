@@ -1,5 +1,5 @@
 import React from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, Navigate } from 'react-router-dom';
 import { VolunteerSidebar } from '../components/layout/VolunteerSidebar';
 import { VolunteerMobileNav } from '../components/layout/VolunteerMobileNav';
 import { Card } from '../components/common/Card';
@@ -30,9 +30,10 @@ export const VolunteerAssignmentDetailsPage: React.FC = () => {
   const navigate = useNavigate();
 
   const assignment = assignments.find((a) => a.id === id) || assignments[0];
+  if (!assignment) return <Navigate to="/volunteer/assignments" replace />;
 
-  const handleReject = () => {
-    rejectAssignment(assignment.id);
+  const handleReject = async () => {
+    await rejectAssignment(assignment.id);
     navigate('/volunteer/assignments');
   };
 

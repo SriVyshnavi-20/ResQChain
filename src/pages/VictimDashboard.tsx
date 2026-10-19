@@ -24,7 +24,7 @@ import { Modal } from '../components/common/Modal';
 import { useAuth } from '../context/AuthContext';
 
 export const VictimDashboard: React.FC = () => {
-  const { user, openSosModal, requests, announcements } = useAuth();
+  const { user, openSosModal, requests, announcements, stats } = useAuth();
   const navigate = useNavigate();
   const [safetyTipsModalOpen, setSafetyTipsModalOpen] = useState(false);
 
@@ -151,7 +151,7 @@ export const VictimDashboard: React.FC = () => {
                       <Home className="w-6 h-6" />
                     </div>
                     <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium">
-                      19 Open
+                      {stats.openShelters} Open
                     </span>
                   </div>
                   <h4 className="text-base font-bold text-slate-900 group-hover:text-brand-700 transition-colors">
@@ -264,7 +264,7 @@ export const VictimDashboard: React.FC = () => {
               >
                 <div className="flex items-center justify-between w-full">
                   <Home className="w-5 h-5 text-brand-600" />
-                  <span className="text-[10px] text-emerald-700 font-semibold">19 Open</span>
+                  <span className="text-[10px] text-emerald-700 font-semibold">{stats.openShelters} Open</span>
                 </div>
                 <div className="mt-3">
                   <span className="text-xs font-bold text-slate-800 group-hover:text-navy-900 block">
@@ -467,7 +467,7 @@ export const VictimDashboard: React.FC = () => {
                     </div>
                   </div>
                   <span className="text-xl font-bold text-amber-800 font-mono">
-                    2
+                    {stats.peopleHelped}
                   </span>
                 </div>
 

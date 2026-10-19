@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 
 export const GovRequestsPage: React.FC = () => {
-  const { requests, escalateToNdrf, fulfillRequest, openSosModal, showToast } = useAuth();
+  const { requests, escalateToNdrf, fulfillRequest, routeRequestToNgo, openSosModal } = useAuth();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [urgencyFilter, setUrgencyFilter] = useState('All');
@@ -48,7 +48,7 @@ export const GovRequestsPage: React.FC = () => {
   };
 
   const handleAssignToNgo = (id: string) => {
-    showToast(`Request ${id} routed to Red Cross Disaster Relief Hub.`);
+    routeRequestToNgo(id);
   };
 
   return (

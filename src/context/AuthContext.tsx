@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   User,
   UserRole,
@@ -14,37 +14,46 @@ import {
   Shelter,
   UserPreferences,
   DisasterZone,
-  GovernmentAgency
+  GovernmentAgency,
+  DashboardStats,
+  ReportSummary
 } from '../types';
-import {
-  MOCK_USERS,
-  MOCK_REQUESTS,
-  MOCK_VOLUNTEER_ASSIGNMENTS,
-  MOCK_VOLUNTEER_TASKS,
-  MOCK_INVENTORY_SUPPLIES,
-  MOCK_NGO_VOLUNTEERS,
-  MOCK_NGO_CAMPS,
-  MOCK_ANNOUNCEMENTS,
-  MOCK_SHELTERS,
-  MOCK_DISASTER_ZONES,
-  MOCK_GOV_AGENCIES
-} from '../data/mockData';
+import { api, ApiError, setUnauthorizedHandler, tokenStore } from '../lib/api';
+import { getPosition, formatCoords, Coords } from '../lib/geo';
+
+export interface RegisterInput {
+  role: UserRole;
+  name: string;
+  email: string;
+  password: string;
+  phone?: string;
+  location?: string;
+  organization?: string;
+  zone?: string;
+  designation?: string;
+  department?: string;
+  inviteCode?: string;
+}
+
+type DisasterType = 'Flood' | 'Fire' | 'Earthquake' | 'Cyclone' | 'Landslide' | 'Other';
+type NeedCategory = 'Medical' | 'Shelter' | 'Food & Water' | 'Supplies' | 'Rescue';
 
 interface AuthContextType {
   user: User | null;
+  /** True while the stored session is being verified on first load. */
+  authLoading: boolean;
   selectedRole: UserRole;
   setSelectedRole: (role: UserRole) => void;
-  loginAsRole: (role: UserRole) => void;
-  loginAsVictim: () => void;
-  loginAsVolunteer: () => void;
-  loginAsNgo: () => void;
-  loginAsGovernment: () => void;
+  /** Resolves to null on success, or a human-readable error message. */
+  login: (email: string, password: string, role: UserRole, remember?: boolean) => Promise<string | null>;
+  /** Creates a new account (does not sign in). Resolves to null on success, or an error message. */
+  register: (data: RegisterInput) => Promise<string | null>;
   logout: () => void;
-  toggleMarkSafe: () => void;
-  updateProfile: (updatedData: Partial<User>) => void;
-  updatePreferences: (newPrefs: UserPreferences) => void;
+  toggleMarkSafe: () => Promise<void>;
+  updateProfile: (updatedData: Partial<User>) => Promise<boolean>;
+  updatePreferences: (newPrefs: UserPreferences) => Promise<void>;
   sosAlert: SosAlertResponse | null;
-  triggerSos: () => SosAlertResponse;
+  triggerSos: (emergencyType?: string) => Promise<SosAlertResponse | null>;
   clearSos: () => void;
   isSosModalOpen: boolean;
   openSosModal: () => void;
@@ -52,479 +61,498 @@ interface AuthContextType {
   toastMessage: string | null;
   showToast: (message: string) => void;
   hideToast: () => void;
-  // Stage 2 Victim State
+  /** Re-fetches all server data for the current user. */
+  refresh: () => Promise<void>;
+  stats: DashboardStats;
+  // Victim
   requests: AssistanceRequest[];
   addEmergencyRequest: (data: {
-    disasterType: 'Flood' | 'Fire' | 'Earthquake' | 'Cyclone' | 'Landslide' | 'Other';
-    category: 'Medical' | 'Shelter' | 'Food & Water' | 'Supplies' | 'Rescue';
+    disasterType: DisasterType;
+    category: NeedCategory;
     urgency: 'Critical' | 'High' | 'Medium' | 'Low';
     location: string;
     details: string;
-  }) => string;
-  cancelRequest: (requestId: string) => void;
+    coordinates?: Coords | null;
+  }) => Promise<string | null>;
+  cancelRequest: (requestId: string) => Promise<void>;
   shelters: Shelter[];
-  requestShelter: (shelterId: string) => void;
+  requestShelter: (shelterId: string) => Promise<void>;
   announcements: Announcement[];
-  broadcastAnnouncement: (ann: Omit<Announcement, 'id' | 'timestamp'>) => void;
+  broadcastAnnouncement: (ann: Omit<Announcement, 'id' | 'timestamp'>) => Promise<void>;
   volunteerTasks: VolunteerTask[];
-  claimTask: (taskId: string) => void;
-  completeTask: (taskId: string) => void;
-  // Stage 3 Volunteer State
+  claimTask: (taskId: string) => Promise<void>;
+  completeTask: (taskId: string) => Promise<void>;
+  // Volunteer
   volunteerAvailability: AvailabilityStatus;
-  setVolunteerAvailability: (status: AvailabilityStatus) => void;
+  setVolunteerAvailability: (status: AvailabilityStatus) => Promise<void>;
   assignments: VolunteerAssignment[];
-  acceptAssignment: (assignmentId: string) => void;
-  startJourney: (assignmentId: string) => void;
-  markAssignmentCompleted: (assignmentId: string) => void;
-  rejectAssignment: (assignmentId: string) => void;
-  // Stage 4 NGO State
+  acceptAssignment: (assignmentId: string) => Promise<boolean>;
+  startJourney: (assignmentId: string) => Promise<void>;
+  markAssignmentCompleted: (assignmentId: string) => Promise<void>;
+  rejectAssignment: (assignmentId: string) => Promise<void>;
+  // NGO
   inventory: InventorySupply[];
-  restockSupply: (id: string, amount: number) => void;
-  dispatchSupply: (id: string, amount: number) => void;
-  addSupplyItem: (item: Omit<InventorySupply, 'id' | 'lastRestocked' | 'status'>) => void;
+  restockSupply: (id: string, amount: number) => Promise<void>;
+  dispatchSupply: (id: string, amount: number) => Promise<void>;
+  addSupplyItem: (item: Omit<InventorySupply, 'id' | 'lastRestocked' | 'status'>) => Promise<void>;
   ngoVolunteers: NgoVolunteer[];
-  reassignNgoVolunteer: (id: string, newCamp: string, newTask: string) => void;
-  fulfillRequest: (requestId: string, supplyNote?: string) => void;
+  reassignNgoVolunteer: (id: string, newCamp: string, newTask: string) => Promise<void>;
+  fulfillRequest: (requestId: string, supplyNote?: string) => Promise<boolean>;
+  dispatchConsignment: (requestId: string) => Promise<void>;
+  deployVolunteers: (requestId: string) => Promise<void>;
   ngoCamps: NgoCamp[];
-  // Stage 5 Government State
+  // Government
   disasterZones: DisasterZone[];
-  updateDisasterStatus: (id: string, newStatus: DisasterZone['status']) => void;
+  updateDisasterStatus: (id: string, newStatus: DisasterZone['status']) => Promise<void>;
   govAgencies: GovernmentAgency[];
-  reassignAgency: (id: string, sector: string) => void;
-  createOfficialAlert: (alert: { title: string; message: string; type: 'emergency' | 'warning' | 'info'; zone: string }) => void;
-  escalateToNdrf: (requestId: string) => void;
-  expandShelterCapacity: (shelterId: string, additionalSpace: number) => void;
+  reassignAgency: (id: string, sector: string) => Promise<void>;
+  createOfficialAlert: (alert: { title: string; message: string; type: 'emergency' | 'warning' | 'info'; zone: string }) => Promise<void>;
+  escalateToNdrf: (requestId: string) => Promise<void>;
+  routeRequestToNgo: (requestId: string) => Promise<void>;
+  expandShelterCapacity: (shelterId: string, additionalSpace: number) => Promise<void>;
+  auditShelter: (shelterId: string) => Promise<void>;
+  requisitionReinforcements: () => Promise<void>;
+  triggerMutualAid: () => Promise<void>;
+  fetchReportSummary: () => Promise<ReportSummary | null>;
+  exportReport: (format: 'csv' | 'pdf') => Promise<void>;
 }
+
+const EMPTY_STATS: DashboardStats = {
+  openShelters: 0,
+  totalShelters: 0,
+  peopleHelped: 0,
+  incomingRequests: 0,
+  volunteersDeployed: 0,
+  distressCalls: 0,
+  zoneCount: 0,
+  resolvedCount: 0,
+  clearancePct: 0,
+  battalions: 0,
+  ngoPartners: 0
+};
+
+interface Bootstrap {
+  user: User;
+  requests: AssistanceRequest[];
+  shelters: Shelter[];
+  announcements: Announcement[];
+  assignments: VolunteerAssignment[];
+  volunteerTasks: VolunteerTask[];
+  inventory: InventorySupply[];
+  ngoVolunteers: NgoVolunteer[];
+  ngoCamps: NgoCamp[];
+  disasterZones: DisasterZone[];
+  govAgencies: GovernmentAgency[];
+  stats: DashboardStats;
+}
+
+const POLL_MS = 15000;
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [selectedRole, setSelectedRole] = useState<UserRole>('Victim');
-  const [user, setUser] = useState<User | null>(MOCK_USERS.Victim);
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(() => !!tokenStore.get());
   const [sosAlert, setSosAlert] = useState<SosAlertResponse | null>(null);
   const [isSosModalOpen, setIsSosModalOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [requests, setRequests] = useState<AssistanceRequest[]>(MOCK_REQUESTS);
-  const [shelters, setShelters] = useState<Shelter[]>(MOCK_SHELTERS);
-  const [announcements, setAnnouncements] = useState<Announcement[]>(MOCK_ANNOUNCEMENTS);
-  const [volunteerTasks] = useState<VolunteerTask[]>(MOCK_VOLUNTEER_TASKS);
+  const [requests, setRequests] = useState<AssistanceRequest[]>([]);
+  const [shelters, setShelters] = useState<Shelter[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [volunteerTasks, setVolunteerTasks] = useState<VolunteerTask[]>([]);
+  const [assignments, setAssignments] = useState<VolunteerAssignment[]>([]);
+  const [inventory, setInventory] = useState<InventorySupply[]>([]);
+  const [ngoVolunteers, setNgoVolunteers] = useState<NgoVolunteer[]>([]);
+  const [ngoCamps, setNgoCamps] = useState<NgoCamp[]>([]);
+  const [disasterZones, setDisasterZones] = useState<DisasterZone[]>([]);
+  const [govAgencies, setGovAgencies] = useState<GovernmentAgency[]>([]);
+  const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
 
-  // Volunteer Stage 3 State
-  const [volunteerAvailability, setVolunteerAvailabilityState] = useState<AvailabilityStatus>('ACTIVE');
-  const [assignments, setAssignments] = useState<VolunteerAssignment[]>(MOCK_VOLUNTEER_ASSIGNMENTS);
+  /* ------------------------------- toast ------------------------------- */
+  const hideToast = useCallback(() => setToastMessage(null), []);
+  const showToast = useCallback((message: string) => {
+    setToastMessage(message);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastMessage(null), 3500);
+  }, []);
 
-  // NGO Stage 4 State
-  const [inventory, setInventory] = useState<InventorySupply[]>(MOCK_INVENTORY_SUPPLIES);
-  const [ngoVolunteers, setNgoVolunteers] = useState<NgoVolunteer[]>(MOCK_NGO_VOLUNTEERS);
-  const [ngoCamps] = useState<NgoCamp[]>(MOCK_NGO_CAMPS);
+  /* --------------------------- data loading --------------------------- */
+  const applyBootstrap = useCallback((b: Bootstrap) => {
+    setUser(b.user);
+    setSelectedRole(b.user.role);
+    setRequests(b.requests);
+    setShelters(b.shelters);
+    setAnnouncements(b.announcements);
+    setAssignments(b.assignments);
+    setVolunteerTasks(b.volunteerTasks);
+    setInventory(b.inventory);
+    setNgoVolunteers(b.ngoVolunteers);
+    setNgoCamps(b.ngoCamps);
+    setDisasterZones(b.disasterZones);
+    setGovAgencies(b.govAgencies);
+    setStats(b.stats);
+  }, []);
 
-  // Government Stage 5 State
-  const [disasterZones, setDisasterZones] = useState<DisasterZone[]>(MOCK_DISASTER_ZONES);
-  const [govAgencies, setGovAgencies] = useState<GovernmentAgency[]>(MOCK_GOV_AGENCIES);
-
-  const loginAsRole = (role: UserRole) => {
-    setSelectedRole(role);
-    setUser(MOCK_USERS[role] || MOCK_USERS.Victim);
-  };
-
-  const loginAsVictim = () => loginAsRole('Victim');
-  const loginAsVolunteer = () => loginAsRole('Volunteer');
-  const loginAsNgo = () => loginAsRole('NGO');
-  const loginAsGovernment = () => loginAsRole('Government Official');
-
-  const logout = () => {
+  const clearData = useCallback(() => {
     setUser(null);
-  };
+    setRequests([]);
+    setShelters([]);
+    setAnnouncements([]);
+    setAssignments([]);
+    setVolunteerTasks([]);
+    setInventory([]);
+    setNgoVolunteers([]);
+    setNgoCamps([]);
+    setDisasterZones([]);
+    setGovAgencies([]);
+    setStats(EMPTY_STATS);
+  }, []);
 
-  const setVolunteerAvailability = (status: AvailabilityStatus) => {
-    setVolunteerAvailabilityState(status);
-    if (user && user.role === 'Volunteer') {
-      setUser({ ...user, availability: status });
+  // Guards against an older, slower response overwriting a newer one.
+  const loadSeq = useRef(0);
+  const refresh = useCallback(async () => {
+    if (!tokenStore.get()) return;
+    const seq = ++loadSeq.current;
+    try {
+      const b = await api.get<Bootstrap>('/bootstrap');
+      if (seq === loadSeq.current) applyBootstrap(b);
+    } catch {
+      /* 401 is handled globally; transient network errors are retried by the next poll */
     }
-    const msg =
-      status === 'ACTIVE'
-        ? 'Volunteer status: ACTIVE. Ready to receive emergency assignments.'
-        : status === 'STANDBY'
-        ? 'Volunteer status: STANDBY. On reserve notice.'
-        : 'Volunteer status: OFFLINE. Currently unavailable for assignments.';
-    showToast(msg);
-  };
+  }, [applyBootstrap]);
 
-  const toggleMarkSafe = () => {
-    if (!user) return;
-    const nextSafeState = !user.isSafe;
-    setUser({ ...user, isSafe: nextSafeState });
-    showToast(nextSafeState ? 'You are marked as SAFE on the public registry.' : 'Safe status revoked.');
-  };
-
-  const updateProfile = (updatedData: Partial<User>) => {
-    if (!user) return;
-    setUser({ ...user, ...updatedData });
-    showToast('Profile updated successfully.');
-  };
-
-  const updatePreferences = (newPrefs: UserPreferences) => {
-    if (!user) return;
-    setUser({ ...user, preferences: newPrefs });
-    showToast('Preferences saved successfully.');
-  };
-
-  const triggerSos = (): SosAlertResponse => {
-    const alert: SosAlertResponse = {
-      requestId: 'SOS-2587',
-      status: 'Emergency Alert Sent',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      location: user?.location || 'Chennai, Tamil Nadu',
-      userName: user ? user.name : 'Emergency User',
-      assignedUnit: 'NDRF Quick Response Team 4'
+  // Restore the session on first load.
+  useEffect(() => {
+    if (!tokenStore.get()) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const b = await api.get<Bootstrap>('/bootstrap');
+        if (!cancelled) applyBootstrap(b);
+      } catch {
+        /* an invalid session is cleared by the unauthorized handler */
+      } finally {
+        if (!cancelled) setAuthLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
     };
-    setSosAlert(alert);
-    return alert;
-  };
+  }, [applyBootstrap]);
 
-  const clearSos = () => {
+  // Expired/invalid token anywhere -> sign out.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      if (!tokenStore.get()) return;
+      tokenStore.clear();
+      clearData();
+      showToast('Your session has expired. Please log in again.');
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [clearData, showToast]);
+
+  // Keep every role's view live: other roles' actions show up without a manual reload.
+  useEffect(() => {
+    if (!user) return;
+    const tick = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    const id = setInterval(tick, POLL_MS);
+    window.addEventListener('focus', tick);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('focus', tick);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [user, refresh]);
+
+  /* ------------------------------ helpers ------------------------------ */
+  /** Runs an API call: toasts the server's message on success (then re-syncs) and the error on failure. */
+  const act = useCallback(
+    async <T extends { message?: string }>(
+      call: () => Promise<T>,
+      opts: { sync?: boolean; silent?: boolean } = {}
+    ): Promise<T | null> => {
+      try {
+        const res = await call();
+        if (res?.message && !opts.silent) showToast(res.message);
+        if (opts.sync !== false) await refresh();
+        return res;
+      } catch (e) {
+        showToast(e instanceof ApiError ? e.message : 'Something went wrong. Please try again.');
+        return null;
+      }
+    },
+    [refresh, showToast]
+  );
+
+  /* -------------------------------- auth -------------------------------- */
+  const login = useCallback(
+    async (email: string, password: string, role: UserRole, remember = true): Promise<string | null> => {
+      try {
+        const res = await api.post<{ token: string; user: User; message?: string }>('/auth/login', { email, password, role });
+        tokenStore.set(res.token, remember);
+        setAuthLoading(false);
+        const b = await api.get<Bootstrap>('/bootstrap');
+        applyBootstrap(b);
+        if (res.message) showToast(res.message);
+        return null;
+      } catch (e) {
+        tokenStore.clear();
+        return e instanceof ApiError ? e.message : 'Unable to sign in. Please try again.';
+      }
+    },
+    [applyBootstrap, showToast]
+  );
+
+  const register = useCallback(async (data: RegisterInput): Promise<string | null> => {
+    try {
+      await api.post('/auth/register', data);
+      return null;
+    } catch (e) {
+      return e instanceof ApiError ? e.message : 'Unable to create your account. Please try again.';
+    }
+  }, []);
+
+  const logout = useCallback(() => {
+    void api.post('/auth/logout').catch(() => undefined);
+    tokenStore.clear();
+    clearData();
     setSosAlert(null);
+  }, [clearData]);
+
+  const toggleMarkSafe = async () => {
+    if (!user) return;
+    await act(() => api.put<{ message: string }>('/me/safe', { isSafe: !user.isSafe }));
   };
 
+  const updateProfile = async (updatedData: Partial<User>): Promise<boolean> => {
+    const res = await act(() => api.patch<{ message: string }>('/me', updatedData));
+    return !!res;
+  };
+
+  const updatePreferences = async (newPrefs: UserPreferences) => {
+    await act(() => api.put<{ message: string }>('/me/preferences', newPrefs));
+  };
+
+  /* --------------------------------- SOS --------------------------------- */
+  const triggerSos = async (emergencyType?: string): Promise<SosAlertResponse | null> => {
+    // Short GPS timeout: an SOS must never be held up waiting for a location fix.
+    const pos = await getPosition(4000);
+    const res = await act(
+      () =>
+        api.post<{ alert: SosAlertResponse; message: string }>('/sos', {
+          emergencyType,
+          ...(pos ? { latitude: pos.lat, longitude: pos.lng } : {}),
+          ...(!user && pos ? { location: `GPS ${formatCoords(pos)}` } : {})
+        }),
+      { sync: !!user, silent: true }
+    );
+    if (res) setSosAlert(res.alert);
+    return res?.alert ?? null;
+  };
+
+  const clearSos = () => setSosAlert(null);
   const openSosModal = () => setIsSosModalOpen(true);
   const closeSosModal = () => setIsSosModalOpen(false);
 
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3500);
-  };
-
-  const hideToast = () => setToastMessage(null);
-
-  const addEmergencyRequest = (data: {
-    disasterType: 'Flood' | 'Fire' | 'Earthquake' | 'Cyclone' | 'Landslide' | 'Other';
-    category: 'Medical' | 'Shelter' | 'Food & Water' | 'Supplies' | 'Rescue';
-    urgency: 'Critical' | 'High' | 'Medium' | 'Low';
-    location: string;
-    details: string;
-  }) => {
-    const nextNum = 1043 + requests.length - 5;
-    const newId = `REQ-${nextNum}`;
-    const newRequest: AssistanceRequest = {
-      id: newId,
-      requestTitle: `${data.category} (${data.disasterType})`,
-      category: data.category,
-      disasterType: data.disasterType,
-      urgency: data.urgency,
-      status: 'Open',
-      victimName: user?.name || 'Anvitha Shetty',
-      location: data.location || 'Chennai, Tamil Nadu',
-      phone: user?.phone || '+91 98401 23456',
-      details: data.details,
-      timestamp: 'Just now',
-      assignedTo: 'Dispatching...',
-      peopleCount: 4,
-      timeline: [
-        { title: 'Request Submitted', subtitle: 'Timestamped and logged on public ledger', time: 'Just now', completed: true, current: true },
-        { title: 'Matched to Responder', subtitle: 'Awaiting responder assignment', completed: false, current: false },
-        { title: 'Responder Enroute', subtitle: 'Pending assignment', completed: false, current: false },
-        { title: 'Resolved and Closed', subtitle: 'Pending completion', completed: false, current: false }
-      ]
-    };
-
-    setRequests(prev => [newRequest, ...prev]);
-    showToast(`Request ${newId} logged on public ledger!`);
-    return newId;
-  };
-
-  const cancelRequest = (requestId: string) => {
-    setRequests(prev =>
-      prev.map(r => {
-        if (r.id === requestId) {
-          return {
-            ...r,
-            status: 'Cancelled',
-            timeline: [
-              ...r.timeline.map(t => ({ ...t, current: false })),
-              { title: 'Request Cancelled', subtitle: 'Cancelled by victim', time: 'Just now', completed: true, current: true }
-            ]
-          };
-        }
-        return r;
+  /* -------------------------------- victim -------------------------------- */
+  const addEmergencyRequest: AuthContextType['addEmergencyRequest'] = async (data) => {
+    const { coordinates, ...rest } = data;
+    const res = await act(() =>
+      api.post<{ request: AssistanceRequest; message: string }>('/requests', {
+        ...rest,
+        ...(coordinates ? { latitude: coordinates.lat, longitude: coordinates.lng } : {})
       })
     );
-    showToast(`Request ${requestId} has been cancelled.`);
+    return res?.request.id ?? null;
   };
 
-  const requestShelter = (shelterId: string) => {
-    setShelters(prev =>
-      prev.map(s => {
-        if (s.id === shelterId && s.availableSpaces > 0) {
-          return {
-            ...s,
-            availableSpaces: s.availableSpaces - 1,
-            occupancy: s.occupancy + 1
-          };
-        }
-        return s;
+  const cancelRequest = async (id: string) => {
+    await act(() => api.post<{ message: string }>(`/requests/${id}/cancel`));
+  };
+
+  const requestShelter = async (shelterId: string) => {
+    await act(() => api.post<{ message: string }>(`/shelters/${shelterId}/reserve`));
+  };
+
+  const broadcastAnnouncement = async (ann: Omit<Announcement, 'id' | 'timestamp'>) => {
+    await act(() =>
+      api.post<{ message: string }>('/announcements', {
+        title: ann.title,
+        message: ann.message,
+        type: ann.type,
+        zone: ann.zone || 'All Zones'
       })
     );
-    showToast('Shelter reservation request confirmed! Proceed to shelter.');
   };
 
-  const broadcastAnnouncement = (annData: Omit<Announcement, 'id' | 'timestamp'>) => {
-    showToast(`Disaster Alert "${annData.title}" logged!`);
+  const claimTask = async (taskId: string) => {
+    await act(() => api.post<{ message: string }>(`/volunteer-tasks/${taskId}/claim`));
+  };
+  const completeTask = async (taskId: string) => {
+    await act(() => api.post<{ message: string }>(`/volunteer-tasks/${taskId}/complete`));
   };
 
-  const claimTask = (taskId: string) => {
-    showToast(`Task ${taskId} claimed.`);
+  /* ------------------------------- volunteer ------------------------------- */
+  const setVolunteerAvailability = async (status: AvailabilityStatus) => {
+    await act(() => api.put<{ message: string }>('/me/availability', { availability: status }));
   };
 
-  const completeTask = (taskId: string) => {
-    showToast(`Task ${taskId} marked as completed.`);
+  const acceptAssignment = async (id: string): Promise<boolean> => {
+    const res = await act(() => api.post<{ message: string }>(`/assignments/${id}/accept`));
+    return !!res;
+  };
+  const startJourney = async (id: string) => {
+    await act(() => api.post<{ message: string }>(`/assignments/${id}/start`));
+  };
+  const markAssignmentCompleted = async (id: string) => {
+    await act(() => api.post<{ message: string }>(`/assignments/${id}/complete`));
+  };
+  const rejectAssignment = async (id: string) => {
+    await act(() => api.post<{ message: string }>(`/assignments/${id}/reject`));
   };
 
-  // Volunteer Stage 3 Handlers
-  const acceptAssignment = (assignmentId: string) => {
-    setAssignments(prev =>
-      prev.map(a => (a.id === assignmentId ? { ...a, status: 'Accepted' } : a))
-    );
-    showToast(`Assignment ${assignmentId} ACCEPTED! Proceed to preparation.`);
+  /* ---------------------------------- NGO ---------------------------------- */
+  const restockSupply = async (id: string, amount: number) => {
+    await act(() => api.post<{ message: string }>(`/inventory/${id}/restock`, { amount }));
+  };
+  const dispatchSupply = async (id: string, amount: number) => {
+    await act(() => api.post<{ message: string }>(`/inventory/${id}/dispatch`, { amount }));
+  };
+  const addSupplyItem = async (item: Omit<InventorySupply, 'id' | 'lastRestocked' | 'status'>) => {
+    await act(() => api.post<{ message: string }>('/inventory', item));
+  };
+  const reassignNgoVolunteer = async (id: string, newCamp: string, newTask: string) => {
+    await act(() => api.patch<{ message: string }>(`/ngo/volunteers/${id}`, { assignedCamp: newCamp, currentTask: newTask }));
+  };
+  const fulfillRequest = async (requestId: string, supplyNote?: string): Promise<boolean> => {
+    const res = await act(() => api.post<{ message: string }>(`/requests/${requestId}/fulfill`, { note: supplyNote }));
+    return !!res;
+  };
+  const dispatchConsignment = async (requestId: string) => {
+    await act(() => api.post<{ message: string }>(`/requests/${requestId}/dispatch-supplies`));
+  };
+  const deployVolunteers = async (requestId: string) => {
+    await act(() => api.post<{ message: string }>(`/requests/${requestId}/deploy-volunteers`));
   };
 
-  const startJourney = (assignmentId: string) => {
-    setAssignments(prev =>
-      prev.map(a => (a.id === assignmentId ? { ...a, status: 'Enroute' } : a))
-    );
-    showToast(`Journey started for ${assignmentId}. GPS tracking activated.`);
+  /* ------------------------------- government ------------------------------- */
+  const updateDisasterStatus = async (id: string, newStatus: DisasterZone['status']) => {
+    await act(() => api.patch<{ message: string }>(`/gov/zones/${id}/status`, { status: newStatus }));
   };
-
-  const markAssignmentCompleted = (assignmentId: string) => {
-    setAssignments(prev =>
-      prev.map(a => (a.id === assignmentId ? { ...a, status: 'Completed' } : a))
-    );
-    if (user && user.role === 'Volunteer') {
-      setUser({
-        ...user,
-        tasksCompleted: (user.tasksCompleted || 18) + 1,
-        activeTasks: Math.max(0, (user.activeTasks || 2) - 1),
-        peopleAssisted: (user.peopleAssisted || 42) + 3
-      });
+  const reassignAgency = async (id: string, sector: string) => {
+    await act(() => api.patch<{ message: string }>(`/gov/agencies/${id}/sector`, { sector }));
+  };
+  const createOfficialAlert = async (alert: { title: string; message: string; type: 'emergency' | 'warning' | 'info'; zone: string }) => {
+    await act(() => api.post<{ message: string }>('/announcements', alert));
+  };
+  const escalateToNdrf = async (requestId: string) => {
+    await act(() => api.post<{ message: string }>(`/requests/${requestId}/escalate`));
+  };
+  const routeRequestToNgo = async (requestId: string) => {
+    await act(() => api.post<{ message: string }>(`/requests/${requestId}/route-ngo`));
+  };
+  const expandShelterCapacity = async (shelterId: string, additionalSpace: number) => {
+    await act(() => api.post<{ message: string }>(`/shelters/${shelterId}/expand`, { additionalSpace }));
+  };
+  const auditShelter = async (shelterId: string) => {
+    await act(() => api.post<{ message: string }>(`/shelters/${shelterId}/audit`));
+  };
+  const requisitionReinforcements = async () => {
+    await act(() => api.post<{ message: string }>('/gov/coordination/reinforcements'), { sync: false });
+  };
+  const triggerMutualAid = async () => {
+    await act(() => api.post<{ message: string }>('/gov/coordination/mutual-aid'), { sync: false });
+  };
+  const fetchReportSummary = async (): Promise<ReportSummary | null> => {
+    try {
+      return (await api.get<{ summary: ReportSummary }>('/reports/summary')).summary;
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : 'Unable to load report data.');
+      return null;
     }
-    showToast(`Assignment ${assignmentId} marked as COMPLETED! Great work.`);
+  };
+  const exportReport = async (format: 'csv' | 'pdf') => {
+    try {
+      showToast(`Generating and exporting official SITREP Report (${format.toUpperCase()})...`);
+      await api.download(`/reports/export?format=${format}`, `resqchain-sitrep.${format}`);
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : 'Report export failed.');
+    }
   };
 
-  const rejectAssignment = (assignmentId: string) => {
-    setAssignments(prev => prev.filter(a => a.id !== assignmentId));
-    showToast(`Assignment ${assignmentId} declined.`);
+  // The handlers above only close over `user` and stable callbacks, so rebuilding the context value
+  // whenever any piece of state changes keeps every consumer current.
+  const value: AuthContextType = {
+    user,
+    authLoading,
+    selectedRole,
+    setSelectedRole,
+    login,
+    register,
+    logout,
+    toggleMarkSafe,
+    updateProfile,
+    updatePreferences,
+    sosAlert,
+    triggerSos,
+    clearSos,
+    isSosModalOpen,
+    openSosModal,
+    closeSosModal,
+    toastMessage,
+    showToast,
+    hideToast,
+    refresh,
+    stats,
+    requests,
+    addEmergencyRequest,
+    cancelRequest,
+    shelters,
+    requestShelter,
+    announcements,
+    broadcastAnnouncement,
+    volunteerTasks,
+    claimTask,
+    completeTask,
+    volunteerAvailability: user?.availability ?? 'ACTIVE',
+    setVolunteerAvailability,
+    assignments,
+    acceptAssignment,
+    startJourney,
+    markAssignmentCompleted,
+    rejectAssignment,
+    inventory,
+    restockSupply,
+    dispatchSupply,
+    addSupplyItem,
+    ngoVolunteers,
+    reassignNgoVolunteer,
+    fulfillRequest,
+    dispatchConsignment,
+    deployVolunteers,
+    ngoCamps,
+    disasterZones,
+    updateDisasterStatus,
+    govAgencies,
+    reassignAgency,
+    createOfficialAlert,
+    escalateToNdrf,
+    routeRequestToNgo,
+    expandShelterCapacity,
+    auditShelter,
+    requisitionReinforcements,
+    triggerMutualAid,
+    fetchReportSummary,
+    exportReport
   };
 
-  // NGO Stage 4 Handlers
-  const restockSupply = (id: string, amount: number) => {
-    setInventory(prev =>
-      prev.map(item => {
-        if (item.id === id) {
-          const newQty = item.quantity + amount;
-          const status = newQty <= item.minThreshold * 0.5 ? 'Critical' : newQty <= item.minThreshold ? 'Low Stock' : 'Adequate';
-          return {
-            ...item,
-            quantity: newQty,
-            status,
-            lastRestocked: 'Just now'
-          };
-        }
-        return item;
-      })
-    );
-    showToast(`Restocked +${amount} units successfully!`);
-  };
-
-  const dispatchSupply = (id: string, amount: number) => {
-    setInventory(prev =>
-      prev.map(item => {
-        if (item.id === id) {
-          const newQty = Math.max(0, item.quantity - amount);
-          const status = newQty <= item.minThreshold * 0.5 ? 'Critical' : newQty <= item.minThreshold ? 'Low Stock' : 'Adequate';
-          return {
-            ...item,
-            quantity: newQty,
-            status
-          };
-        }
-        return item;
-      })
-    );
-    showToast(`Dispatched ${amount} units for field relief consignment.`);
-  };
-
-  const addSupplyItem = (newItemData: Omit<InventorySupply, 'id' | 'lastRestocked' | 'status'>) => {
-    const status = newItemData.quantity <= newItemData.minThreshold * 0.5 ? 'Critical' : newItemData.quantity <= newItemData.minThreshold ? 'Low Stock' : 'Adequate';
-    const newItem: InventorySupply = {
-      ...newItemData,
-      id: `SUP-${Math.floor(100 + Math.random() * 900)}`,
-      lastRestocked: 'Just now',
-      status
-    };
-    setInventory(prev => [newItem, ...prev]);
-    showToast(`New supply item "${newItem.name}" registered in inventory.`);
-  };
-
-  const reassignNgoVolunteer = (id: string, newCamp: string, newTask: string) => {
-    setNgoVolunteers(prev =>
-      prev.map(v => (v.id === id ? { ...v, assignedCamp: newCamp, currentTask: newTask, status: 'On Field' } : v))
-    );
-    showToast(`Volunteer redeployed to ${newCamp}.`);
-  };
-
-  const fulfillRequest = (requestId: string, supplyNote?: string) => {
-    setRequests(prev =>
-      prev.map(r => {
-        if (r.id === requestId) {
-          return {
-            ...r,
-            status: 'Resolved',
-            assignedTo: 'Red Cross Relief Foundation (Dr. Priya)',
-            timeline: [
-              ...r.timeline.map(t => ({ ...t, current: false })),
-              { title: 'Relief Consignment Delivered', subtitle: supplyNote || 'Food, water and medical aid delivered by Red Cross', time: 'Just now', completed: true, current: true },
-              { title: 'Resolved and Closed', subtitle: 'Assistance fulfilled and verified by NGO', time: 'Just now', completed: true, current: false }
-            ]
-          };
-        }
-        return r;
-      })
-    );
-    setInventory(prev =>
-      prev.map(item => (item.category === 'Food' || item.category === 'Water' ? { ...item, quantity: Math.max(0, item.quantity - 4) } : item))
-    );
-    showToast(`Request ${requestId} marked as FULFILLED! Relief recorded.`);
-  };
-
-  // Government Stage 5 Handlers
-  const updateDisasterStatus = (id: string, newStatus: DisasterZone['status']) => {
-    setDisasterZones(prev =>
-      prev.map(z => (z.id === id ? { ...z, status: newStatus, lastUpdated: 'Just now' } : z))
-    );
-    showToast(`Disaster zone status updated to: ${newStatus}`);
-  };
-
-  const reassignAgency = (id: string, sector: string) => {
-    setGovAgencies(prev =>
-      prev.map(a => (a.id === id ? { ...a, assignedSector: sector, status: 'Deployed' } : a))
-    );
-    showToast(`Battalion redeployed to sector: ${sector}`);
-  };
-
-  const createOfficialAlert = (alertData: { title: string; message: string; type: 'emergency' | 'warning' | 'info'; zone: string }) => {
-    const newAlert: Announcement = {
-      id: `ann-gov-${Date.now()}`,
-      title: alertData.title,
-      message: alertData.message,
-      type: alertData.type,
-      zone: alertData.zone,
-      timestamp: 'Just now',
-      issuedBy: 'TNSDMA State Disaster Operations Center'
-    };
-    setAnnouncements(prev => [newAlert, ...prev]);
-    showToast(`STATEWIDE EMERGENCY BROADCAST "${alertData.title}" ISSUED!`);
-  };
-
-  const escalateToNdrf = (requestId: string) => {
-    setRequests(prev =>
-      prev.map(r => {
-        if (r.id === requestId) {
-          return {
-            ...r,
-            assignedTo: 'NDRF 04 Battalion Quick Strike Team',
-            urgency: 'Critical',
-            timeline: [
-              ...r.timeline.map(t => ({ ...t, current: false })),
-              { title: 'Escalated to NDRF Command', subtitle: 'Authorized by State Relief Commissioner (R. Rajesh IAS)', time: 'Just now', completed: true, current: true }
-            ]
-          };
-        }
-        return r;
-      })
-    );
-    showToast(`Ticket ${requestId} ESCALATED TO NDRF QUICK STRIKE FORCE!`);
-  };
-
-  const expandShelterCapacity = (shelterId: string, additionalSpace: number) => {
-    setShelters(prev =>
-      prev.map(s => {
-        if (s.id === shelterId) {
-          const newCap = s.capacity + additionalSpace;
-          return {
-            ...s,
-            capacity: newCap,
-            availableSpaces: s.availableSpaces + additionalSpace
-          };
-        }
-        return s;
-      })
-    );
-    showToast(`Shelter capacity expanded by +${additionalSpace} emergency beds!`);
-  };
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        selectedRole,
-        setSelectedRole,
-        loginAsRole,
-        loginAsVictim,
-        loginAsVolunteer,
-        loginAsNgo,
-        loginAsGovernment,
-        logout,
-        toggleMarkSafe,
-        updateProfile,
-        updatePreferences,
-        sosAlert,
-        triggerSos,
-        clearSos,
-        isSosModalOpen,
-        openSosModal,
-        closeSosModal,
-        toastMessage,
-        showToast,
-        hideToast,
-        requests,
-        addEmergencyRequest,
-        cancelRequest,
-        shelters,
-        requestShelter,
-        announcements,
-        broadcastAnnouncement,
-        volunteerTasks,
-        claimTask,
-        completeTask,
-        volunteerAvailability,
-        setVolunteerAvailability,
-        assignments,
-        acceptAssignment,
-        startJourney,
-        markAssignmentCompleted,
-        rejectAssignment,
-        inventory,
-        restockSupply,
-        dispatchSupply,
-        addSupplyItem,
-        ngoVolunteers,
-        reassignNgoVolunteer,
-        fulfillRequest,
-        ngoCamps,
-        disasterZones,
-        updateDisasterStatus,
-        govAgencies,
-        reassignAgency,
-        createOfficialAlert,
-        escalateToNdrf,
-        expandShelterCapacity
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = (): AuthContextType => {

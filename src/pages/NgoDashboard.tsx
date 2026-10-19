@@ -128,7 +128,7 @@ export const NgoDashboard: React.FC = () => {
                 </div>
               </div>
               <div className="text-3xl font-black text-amber-700 font-mono">
-                {openRequests.length + 5}
+                {openRequests.length}
               </div>
               <span className="text-[11px] text-slate-400 mt-1 block">Requiring NGO supply allocation</span>
             </Card>
@@ -142,7 +142,7 @@ export const NgoDashboard: React.FC = () => {
                 </div>
               </div>
               <div className="text-3xl font-black text-purple-700 font-mono">
-                {onFieldVolunteers.length + 20}
+                {onFieldVolunteers.length}
               </div>
               <span className="text-[11px] text-slate-400 mt-1 block">Active on field missions</span>
             </Card>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ShieldAlert,
@@ -23,10 +23,31 @@ import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { useAuth } from '../context/AuthContext';
-import { MOCK_POPULAR_SERVICES, MOCK_HELPLINES, MOCK_PLATFORM_STATS } from '../data/mockData';
+import { DEFAULT_SERVICES, DEFAULT_HELPLINES, DEFAULT_PLATFORM_STATS } from '../data/mockData';
+import { api } from '../lib/api';
+import { LandingData } from '../types';
 
 export const LandingPage: React.FC = () => {
   const { openSosModal, showToast } = useAuth();
+
+  // Static defaults render instantly; live content (services, helplines, platform stats) replaces them from the API.
+  const [landing, setLanding] = useState<LandingData>({
+    services: DEFAULT_SERVICES,
+    helplines: DEFAULT_HELPLINES,
+    stats: DEFAULT_PLATFORM_STATS
+  });
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get<LandingData>('/public/landing')
+      .then((d) => {
+        if (!cancelled) setLanding(d);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const getServiceIcon = (iconName: string) => {
     switch (iconName) {
@@ -211,7 +232,7 @@ export const LandingPage: React.FC = () => {
                   <Users className="w-6 h-6" />
                 </div>
                 <div className="text-3xl sm:text-4xl font-extrabold text-navy-900 tracking-tight">
-                  {MOCK_PLATFORM_STATS.peopleHelped}
+                  {landing.stats.peopleHelped}
                 </div>
                 <div className="text-sm font-semibold text-slate-600 mt-1">
                   People Helped
@@ -227,7 +248,7 @@ export const LandingPage: React.FC = () => {
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
                 <div className="text-3xl sm:text-4xl font-extrabold text-emerald-950 tracking-tight">
-                  {MOCK_PLATFORM_STATS.requestsResolved}
+                  {landing.stats.requestsResolved}
                 </div>
                 <div className="text-sm font-semibold text-slate-600 mt-1">
                   Requests Resolved
@@ -243,7 +264,7 @@ export const LandingPage: React.FC = () => {
                   <HeartPulse className="w-6 h-6" />
                 </div>
                 <div className="text-3xl sm:text-4xl font-extrabold text-navy-900 tracking-tight">
-                  {MOCK_PLATFORM_STATS.activeVolunteers}
+                  {landing.stats.activeVolunteers}
                 </div>
                 <div className="text-sm font-semibold text-slate-600 mt-1">
                   Active Volunteers
@@ -272,7 +293,7 @@ export const LandingPage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {MOCK_POPULAR_SERVICES.map((service) => (
+            {landing.services.map((service) => (
               <Card
                 key={service.id}
                 hoverable
@@ -372,7 +393,7 @@ export const LandingPage: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {MOCK_HELPLINES.map((helpline) => (
+              {landing.helplines.map((helpline) => (
                 <Card
                   key={helpline.number}
                   padding="md"

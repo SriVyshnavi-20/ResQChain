@@ -33,9 +33,9 @@ export const VolunteerRequestsPage: React.FC = () => {
     }
   };
 
-  const handleAccept = (id: string) => {
-    acceptAssignment(id);
-    navigate(`/volunteer/assignments/${id}`);
+  const handleAccept = async (id: string) => {
+    const ok = await acceptAssignment(id);
+    if (ok) navigate(`/volunteer/assignments/${id}`);
   };
 
   return (

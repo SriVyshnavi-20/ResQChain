@@ -1,5 +1,5 @@
 import React from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, Navigate } from 'react-router-dom';
 import { Sidebar } from '../components/layout/Sidebar';
 import { MobileNav } from '../components/layout/MobileNav';
 import { Card } from '../components/common/Card';
@@ -21,6 +21,7 @@ export const RequestTrackingPage: React.FC = () => {
   const { requests, cancelRequest, openSosModal, showToast } = useAuth();
 
   const request = requests.find((r) => r.id === id) || requests[0];
+  if (!request) return <Navigate to="/victim/my-requests" replace />;
 
   const handleCancel = () => {
     if (request.status === 'Cancelled' || request.status === 'Resolved') {

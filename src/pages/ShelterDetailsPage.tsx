@@ -1,5 +1,5 @@
 import React from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, Navigate } from 'react-router-dom';
 import { Sidebar } from '../components/layout/Sidebar';
 import { MobileNav } from '../components/layout/MobileNav';
 import { Card } from '../components/common/Card';
@@ -21,6 +21,7 @@ export const ShelterDetailsPage: React.FC = () => {
   const { shelters, requestShelter, openSosModal, showToast } = useAuth();
 
   const shelter = shelters.find((s) => s.id === id) || shelters[0];
+  if (!shelter) return <Navigate to="/victim/shelters" replace />;
 
   const handleDirections = () => {
     showToast(`Navigating to ${shelter.name}: Routing via flood-safe elevated corridor.`);

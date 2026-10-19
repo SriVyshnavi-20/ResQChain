@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 export const GovSheltersPage: React.FC = () => {
-  const { shelters, expandShelterCapacity, openSosModal, showToast } = useAuth();
+  const { shelters, expandShelterCapacity, auditShelter, openSosModal } = useAuth();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [expandModalOpen, setExpandModalOpen] = useState(false);
@@ -41,8 +41,8 @@ export const GovSheltersPage: React.FC = () => {
     setExpandModalOpen(false);
   };
 
-  const handleAudit = (shelterName: string) => {
-    showToast(`Disaster Safety & Food Hygiene audit cleared for ${shelterName}.`);
+  const handleAudit = (shelterId: string) => {
+    auditShelter(shelterId);
   };
 
   return (
@@ -172,7 +172,7 @@ export const GovSheltersPage: React.FC = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleAudit(shelter.name)}
+                      onClick={() => handleAudit(shelter.id)}
                     >
                       Audit Safety
                     </Button>

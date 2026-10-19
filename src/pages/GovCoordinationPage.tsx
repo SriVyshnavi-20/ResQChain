@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 export const GovCoordinationPage: React.FC = () => {
-  const { govAgencies, reassignAgency, openSosModal, showToast } = useAuth();
+  const { govAgencies, reassignAgency, requisitionReinforcements, triggerMutualAid, openSosModal } = useAuth();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [reassignModalOpen, setReassignModalOpen] = useState(false);
@@ -43,11 +43,11 @@ export const GovCoordinationPage: React.FC = () => {
   };
 
   const handleReinforcements = () => {
-    showToast('Air Force Helicopter & NDRF Reserve Battalion requisitioned from Arakkonam Base.');
+    requisitionReinforcements();
   };
 
   const handleMutualAid = () => {
-    showToast('Inter-District Mutual Aid protocol broadcasted to neighboring district collectors.');
+    triggerMutualAid();
   };
 
   return (

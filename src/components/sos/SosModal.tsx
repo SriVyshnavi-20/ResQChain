@@ -8,6 +8,7 @@ import { AlertOctagon, CheckCircle2, MapPin, PhoneCall, ShieldAlert, Clock, User
 export const SosModal: React.FC = () => {
   const { isSosModalOpen, closeSosModal, triggerSos, sosAlert, clearSos, user } = useAuth();
   const [isSent, setIsSent] = useState<boolean>(false);
+  const [isSending, setIsSending] = useState<boolean>(false);
   const [selectedEmergencyType, setSelectedEmergencyType] = useState<string>('Flood / Waterlogging');
 
   const emergencyTypes = [
@@ -23,9 +24,12 @@ export const SosModal: React.FC = () => {
     closeSosModal();
   };
 
-  const handleSendSos = () => {
-    triggerSos();
-    setIsSent(true);
+  const handleSendSos = async () => {
+    if (isSending) return;
+    setIsSending(true);
+    const alert = await triggerSos(selectedEmergencyType);
+    setIsSending(false);
+    if (alert) setIsSent(true);
   };
 
   return (
@@ -58,13 +62,13 @@ export const SosModal: React.FC = () => {
             <div className="flex items-center justify-between">
               <span className="text-slate-500 font-medium">Victim Name:</span>
               <span className="font-semibold text-slate-800 flex items-center gap-1">
-                <UserCheck className="w-3.5 h-3.5 text-navy-700" /> {user?.name || 'Anvitha'}
+                <UserCheck className="w-3.5 h-3.5 text-navy-700" /> {user?.name || 'Emergency User'}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-slate-500 font-medium">Broadcast Location:</span>
               <span className="font-semibold text-slate-800 flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-red-600" /> {user?.location || 'Chennai, Tamil Nadu'}
+                <MapPin className="w-3.5 h-3.5 text-red-600" /> {user?.location || 'Current GPS location'}
               </span>
             </div>
           </div>
@@ -104,10 +108,11 @@ export const SosModal: React.FC = () => {
             <Button
               variant="sos"
               size="md"
+              disabled={isSending}
               leftIcon={<ShieldAlert className="w-4 h-4" />}
               onClick={handleSendSos}
             >
-              SEND SOS
+              {isSending ? 'SENDING...' : 'SEND SOS'}
             </Button>
           </div>
         </div>
@@ -148,7 +153,7 @@ export const SosModal: React.FC = () => {
               <span className="text-xs font-medium text-slate-500">Dispatch Location</span>
               <span className="text-xs font-semibold text-slate-800 flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5 text-red-500" />
-                {sosAlert?.location || 'Chennai, Tamil Nadu'}
+                {sosAlert?.location || 'Current GPS location'}
               </span>
             </div>
 

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { ShieldAlert, LogIn, Lock, Mail, ArrowLeft, AlertCircle } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { ShieldAlert, LogIn, Lock, Mail, ArrowLeft, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
@@ -9,44 +9,29 @@ import { useAuth } from '../context/AuthContext';
 import { UserRole } from '../types';
 
 export const LoginPage: React.FC = () => {
-  const {
-    selectedRole,
-    setSelectedRole,
-    loginAsVictim,
-    loginAsVolunteer,
-    loginAsNgo,
-    loginAsGovernment,
-    showToast
-  } = useAuth();
+  const { selectedRole, setSelectedRole, login, showToast } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState(
-    selectedRole === 'Government Official'
-      ? 'rajesh.sdma@gov.in'
-      : selectedRole === 'NGO'
-      ? 'priya@redcrossrelief.org'
-      : selectedRole === 'Volunteer'
-      ? 'priya.nair@resqchain.org'
-      : 'anvi123@org'
-  );
-  const [password, setPassword] = useState('password123');
+  // Arriving from the Register page: show a confirmation and pre-fill only the email the person just registered.
+  const location = useLocation();
+  const justRegistered = (location.state as { registeredEmail?: string } | null)?.registeredEmail;
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+    // Inputs stay read-only until clicked, so the browser cannot auto-fill saved logins on load.
+  const [armed, setArmed] = useState(false);
 
-  const handleRoleChange = (role: UserRole) => {
-    setSelectedRole(role);
-    setErrorMsg(null);
-    if (role === 'Government Official') {
-      setEmail('rajesh.sdma@gov.in');
-    } else if (role === 'NGO') {
-      setEmail('priya@redcrossrelief.org');
-    } else if (role === 'Volunteer') {
-      setEmail('priya.nair@resqchain.org');
-    } else if (role === 'Victim') {
-      setEmail('anvi123@org');
-    }
-  };
+  useEffect(() => {
+    setEmail('');
+    setPassword('');
+  }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+ const handleRoleChange = (role: UserRole) => {
+  setSelectedRole(role);
+  setErrorMsg(null);
+};
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setErrorMsg(null);
 
@@ -55,23 +40,24 @@ export const LoginPage: React.FC = () => {
       return;
     }
 
-    if (selectedRole === 'Victim') {
-      loginAsVictim();
-      showToast('Welcome back, Anvitha! Logged in as Victim.');
-      navigate('/victim/dashboard');
-    } else if (selectedRole === 'Volunteer') {
-      loginAsVolunteer();
-      showToast('Welcome back, Priya Nair! Logged in as Volunteer.');
-      navigate('/volunteer/dashboard');
-    } else if (selectedRole === 'NGO') {
-      loginAsNgo();
-      showToast('Welcome back, Dr. Priya Sundaram! Logged in as NGO Partner.');
-      navigate('/ngo/dashboard');
-    } else if (selectedRole === 'Government Official') {
-      loginAsGovernment();
-      showToast('Welcome, R. Rajesh IAS! Logged into State Disaster Command Center.');
-      navigate('/government/dashboard');
+    const remember = (e.currentTarget.elements.namedItem('remember') as HTMLInputElement | null)?.checked ?? true;
+    setSubmitting(true);
+    const error = await login(email.trim(), password, selectedRole, remember);
+    setSubmitting(false);
+    if (error) {
+      setErrorMsg(error);
+      return;
     }
+
+    navigate(
+      selectedRole === 'Volunteer'
+        ? '/volunteer/dashboard'
+        : selectedRole === 'NGO'
+        ? '/ngo/dashboard'
+        : selectedRole === 'Government Official'
+        ? '/government/dashboard'
+        : '/victim/dashboard'
+    );
   };
 
   const handleAuxiliaryAction = (actionName: string) => {
@@ -114,11 +100,18 @@ export const LoginPage: React.FC = () => {
           </div>
 
           {/* Role selection pills */}
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5" autoComplete="off">
             <RoleSelector
               selectedRole={selectedRole}
               onSelectRole={handleRoleChange}
             />
+
+            {justRegistered && !errorMsg && (
+              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Account created successfully. Please log in with your email and password.</span>
+              </div>
+            )}
 
             {/* Error Message if any */}
             {errorMsg && (
@@ -137,16 +130,10 @@ export const LoginPage: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your registered email"
-                leftIcon={<Mail className="w-4 h-4" />}
-                helperText={
-                  selectedRole === 'Victim'
-                    ? 'Pre-filled: Victim (Anvitha Shetty)'
-                    : selectedRole === 'Volunteer'
-                    ? 'Pre-filled: Volunteer (Priya Nair)'
-                    : selectedRole === 'NGO'
-                    ? 'Pre-filled: NGO Partner (Dr. Priya Sundaram)'
-                    : 'Pre-filled: Government Official (R. Rajesh IAS - SDMA)'
-                }
+                name="resq-login-email"
+                autoComplete="off"
+                readOnly={!armed}
+                onFocus={() => setArmed(true)}
               />
 
               {/* Password field */}
@@ -157,7 +144,11 @@ export const LoginPage: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                leftIcon={<Lock className="w-4 h-4" />}
+                name="resq-login-password"
+                autoComplete="new-password"
+                readOnly={!armed}
+                onFocus={() => setArmed(true)}
+                
               />
             </div>
 
@@ -166,6 +157,7 @@ export const LoginPage: React.FC = () => {
               <label className="flex items-center gap-2 cursor-pointer text-slate-600">
                 <input
                   type="checkbox"
+                  name="remember"
                   defaultChecked
                   className="rounded border-slate-300 text-navy-900 focus:ring-navy-800 h-4 w-4"
                 />
@@ -188,6 +180,7 @@ export const LoginPage: React.FC = () => {
                 variant="primary"
                 size="lg"
                 fullWidth
+                disabled={submitting}
                 leftIcon={<LogIn className="w-4 h-4" />}
               >
                 Login to Command
@@ -197,13 +190,9 @@ export const LoginPage: React.FC = () => {
             {/* Sign Up Link */}
             <div className="text-center pt-2 text-xs text-slate-500">
               Don't have an account?{' '}
-              <button
-                type="button"
-                onClick={() => handleAuxiliaryAction('Registration')}
-                className="font-semibold text-navy-900 hover:underline cursor-pointer"
-              >
+              <Link to="/register" className="font-semibold text-navy-900 hover:underline cursor-pointer">
                 Sign Up
-              </button>
+              </Link>
             </div>
           </form>
 

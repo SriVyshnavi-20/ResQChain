@@ -6,6 +6,7 @@ import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Input } from '../components/common/Input';
 import { useAuth } from '../context/AuthContext';
+import { getPosition, formatCoords, Coords } from '../lib/geo';
 import {
   MapPin,
   Compass,
@@ -32,6 +33,8 @@ export const ReportEmergencyPage: React.FC = () => {
   const [urgency, setUrgency] = useState<'Low' | 'Moderate' | 'Critical'>('Critical');
   const [details, setDetails] = useState('');
   const [isLocating, setIsLocating] = useState(false);
+  const [coords, setCoords] = useState<Coords | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const disasterOptions = [
     { label: 'Flood', icon: Droplets },
@@ -49,31 +52,38 @@ export const ReportEmergencyPage: React.FC = () => {
     { label: 'Water', icon: Droplets }
   ] as const;
 
-  const handleUseCurrentLocation = () => {
+  const handleUseCurrentLocation = async () => {
     setIsLocating(true);
-    setTimeout(() => {
-      setLocation('Riverside Sector 4, Chennai, Tamil Nadu (GPS Locked)');
-      setIsLocating(false);
-      showToast('GPS coordinates locked: Chennai, Tamil Nadu');
-    }, 600);
+    const pos = await getPosition();
+    setIsLocating(false);
+    if (!pos) {
+      showToast('Unable to read your GPS location. Allow location access or type your address.');
+      return;
+    }
+    setCoords(pos);
+    setLocation(`${formatCoords(pos)} (GPS Locked)`);
+    showToast(`GPS coordinates locked: ${formatCoords(pos)}`);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!details.trim()) {
       showToast('Please provide a brief description of the situation.');
       return;
     }
 
-    const newId = addEmergencyRequest({
+    setIsSubmitting(true);
+    const newId = await addEmergencyRequest({
       disasterType,
       category: needType,
       urgency: urgency === 'Moderate' ? 'High' : urgency,
       location,
-      details
+      details,
+      coordinates: coords
     });
+    setIsSubmitting(false);
 
-    navigate(`/victim/request/${newId}`);
+    if (newId) navigate(`/victim/request/${newId}`);
   };
 
   return (
@@ -132,7 +142,10 @@ export const ReportEmergencyPage: React.FC = () => {
                     <Input
                       required
                       value={location}
-                      onChange={(e) => setLocation(e.target.value)}
+                      onChange={(e) => {
+                        setLocation(e.target.value);
+                        setCoords(null);
+                      }}
                       placeholder="Enter address, zone, or landmark"
                       leftIcon={<MapPin className="w-4 h-4 text-red-500" />}
                     />
@@ -259,6 +272,7 @@ export const ReportEmergencyPage: React.FC = () => {
                   type="submit"
                   variant="sos"
                   size="lg"
+                  disabled={isSubmitting}
                   leftIcon={<Send className="w-4 h-4" />}
                 >
                   SUBMIT REQUEST

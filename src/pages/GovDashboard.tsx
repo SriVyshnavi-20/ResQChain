@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 export const GovDashboard: React.FC = () => {
-  const { user, disasterZones, requests, govAgencies, shelters, openSosModal } = useAuth();
+  const { user, disasterZones, requests, govAgencies, shelters, stats, openSosModal } = useAuth();
   const navigate = useNavigate();
 
   const activeCrises = disasterZones.filter((z) => z.status === 'Active Crisis');
@@ -109,7 +109,7 @@ export const GovDashboard: React.FC = () => {
               <div className="text-2xl font-black text-red-600 font-mono">
                 {activeCrises.length}
               </div>
-              <span className="text-[10px] text-slate-400">Adyar &amp; Marina</span>
+              <span className="text-[10px] text-slate-400">{activeCrises.length ? activeCrises.map((z) => z.name.split(' ')[0]).join(' & ') : 'No active crises'}</span>
             </Card>
 
             {/* 2. Total Requests Logged */}
@@ -119,9 +119,9 @@ export const GovDashboard: React.FC = () => {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Distress Calls</span>
               </div>
               <div className="text-2xl font-black text-navy-900 font-mono">
-                1,840
+                {stats.distressCalls.toLocaleString()}
               </div>
-              <span className="text-[10px] text-slate-400">Across 8 zones</span>
+              <span className="text-[10px] text-slate-400">Across {stats.zoneCount} zones</span>
             </Card>
 
             {/* 3. Requests Resolved */}
@@ -131,9 +131,9 @@ export const GovDashboard: React.FC = () => {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Resolved</span>
               </div>
               <div className="text-2xl font-black text-emerald-700 font-mono">
-                1,420
+                {stats.resolvedCount.toLocaleString()}
               </div>
-              <span className="text-[10px] text-emerald-600 font-semibold">77.2% clearance</span>
+              <span className="text-[10px] text-emerald-600 font-semibold">{stats.clearancePct}% clearance</span>
             </Card>
 
             {/* 4. Sheltered Citizens */}
@@ -145,7 +145,7 @@ export const GovDashboard: React.FC = () => {
               <div className="text-2xl font-black text-blue-700 font-mono">
                 {totalShelterOccupancy.toLocaleString()}
               </div>
-              <span className="text-[10px] text-slate-400">19 relief centers</span>
+              <span className="text-[10px] text-slate-400">{stats.totalShelters} relief centers</span>
             </Card>
 
             {/* 5. Deployed Battalions */}
@@ -155,7 +155,7 @@ export const GovDashboard: React.FC = () => {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Battalions</span>
               </div>
               <div className="text-2xl font-black text-purple-700 font-mono">
-                14
+                {stats.battalions}
               </div>
               <span className="text-[10px] text-slate-400">NDRF &amp; Police QRT</span>
             </Card>
@@ -167,7 +167,7 @@ export const GovDashboard: React.FC = () => {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">NGO Partners</span>
               </div>
               <div className="text-2xl font-black text-amber-700 font-mono">
-                8
+                {stats.ngoPartners}
               </div>
               <span className="text-[10px] text-slate-400">Red Cross, YRB...</span>
             </Card>

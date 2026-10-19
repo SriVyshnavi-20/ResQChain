@@ -212,3 +212,37 @@ export interface GovernmentAgency {
   assignedSector: string;
   status: 'Deployed' | 'Standby' | 'Enroute';
 }
+
+// ---- Backend API contract types (Stage 6: full-stack integration) ----
+
+export interface DashboardStats {
+  openShelters: number;
+  totalShelters: number;
+  peopleHelped: number;
+  incomingRequests: number;
+  volunteersDeployed: number;
+  distressCalls: number;
+  zoneCount: number;
+  resolvedCount: number;
+  clearancePct: number;
+  battalions: number;
+  ngoPartners: number;
+}
+
+export interface ReportSummary {
+  generatedAt: string;
+  casualtiesAvertedPct: number;
+  peopleAssisted: number;
+  requestsResolved: number;
+  requestsTotal: number;
+  clearancePct: number;
+  avgResponseMinutes: number;
+  categories: { key: string; name: string; count: number; pct: number }[];
+  logistics: { foodPacks: number; waterLitres: number; medicalKits: number; campCount: number };
+}
+
+export interface LandingData {
+  services: EmergencyService[];
+  helplines: HelplineInfo[];
+  stats: { peopleHelped: string; requestsResolved: string; activeVolunteers: string };
+}

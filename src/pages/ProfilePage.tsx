@@ -209,7 +209,7 @@ export const ProfilePage: React.FC = () => {
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => showToast('Navigating to Anna Nagar Shelter...')}
+                onClick={() => showToast(`Navigating to ${user?.nearestShelter || 'the nearest shelter'}...`)}
               >
                 View Directions
               </Button>

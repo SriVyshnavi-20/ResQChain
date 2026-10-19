@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './context/AuthContext';
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
 
 // Stage 2 Victim Module Pages
 import { VictimDashboard } from './pages/VictimDashboard';
@@ -48,6 +49,7 @@ import { GovProfilePage } from './pages/GovProfilePage';
 import { GovSettingsPage } from './pages/GovSettingsPage';
 
 // Common Components
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { SosModal } from './components/sos/SosModal';
 import { Toast } from './components/common/Toast';
 
@@ -60,49 +62,50 @@ export const App: React.FC = () => {
             {/* Stage 1 Base Routes */}
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
             
             {/* Stage 2 Victim Module Routes */}
-            <Route path="/victim/dashboard" element={<VictimDashboard />} />
-            <Route path="/victim/report-emergency" element={<ReportEmergencyPage />} />
-            <Route path="/victim/my-requests" element={<RequestsPage />} />
-            <Route path="/victim/request/:id" element={<RequestTrackingPage />} />
-            <Route path="/victim/shelters" element={<SheltersPage />} />
-            <Route path="/victim/shelter/:id" element={<ShelterDetailsPage />} />
-            <Route path="/victim/announcements" element={<AnnouncementsPage />} />
-            <Route path="/victim/profile" element={<ProfilePage />} />
-            <Route path="/victim/settings" element={<SettingsPage />} />
+            <Route path="/victim/dashboard" element={<ProtectedRoute role="Victim"><VictimDashboard /></ProtectedRoute>} />
+            <Route path="/victim/report-emergency" element={<ProtectedRoute role="Victim"><ReportEmergencyPage /></ProtectedRoute>} />
+            <Route path="/victim/my-requests" element={<ProtectedRoute role="Victim"><RequestsPage /></ProtectedRoute>} />
+            <Route path="/victim/request/:id" element={<ProtectedRoute role="Victim"><RequestTrackingPage /></ProtectedRoute>} />
+            <Route path="/victim/shelters" element={<ProtectedRoute role="Victim"><SheltersPage /></ProtectedRoute>} />
+            <Route path="/victim/shelter/:id" element={<ProtectedRoute role="Victim"><ShelterDetailsPage /></ProtectedRoute>} />
+            <Route path="/victim/announcements" element={<ProtectedRoute role="Victim"><AnnouncementsPage /></ProtectedRoute>} />
+            <Route path="/victim/profile" element={<ProtectedRoute role="Victim"><ProfilePage /></ProtectedRoute>} />
+            <Route path="/victim/settings" element={<ProtectedRoute role="Victim"><SettingsPage /></ProtectedRoute>} />
 
             {/* Stage 3 Volunteer Module Routes */}
-            <Route path="/volunteer/dashboard" element={<VolunteerDashboard />} />
-            <Route path="/volunteer/assignments" element={<VolunteerAssignmentsPage />} />
-            <Route path="/volunteer/assignments/:id" element={<VolunteerAssignmentDetailsPage />} />
-            <Route path="/volunteer/requests" element={<VolunteerRequestsPage />} />
-            <Route path="/volunteer/shelters" element={<VolunteerSheltersPage />} />
-            <Route path="/volunteer/announcements" element={<VolunteerAnnouncementsPage />} />
-            <Route path="/volunteer/profile" element={<VolunteerProfilePage />} />
-            <Route path="/volunteer/settings" element={<VolunteerSettingsPage />} />
+            <Route path="/volunteer/dashboard" element={<ProtectedRoute role="Volunteer"><VolunteerDashboard /></ProtectedRoute>} />
+            <Route path="/volunteer/assignments" element={<ProtectedRoute role="Volunteer"><VolunteerAssignmentsPage /></ProtectedRoute>} />
+            <Route path="/volunteer/assignments/:id" element={<ProtectedRoute role="Volunteer"><VolunteerAssignmentDetailsPage /></ProtectedRoute>} />
+            <Route path="/volunteer/requests" element={<ProtectedRoute role="Volunteer"><VolunteerRequestsPage /></ProtectedRoute>} />
+            <Route path="/volunteer/shelters" element={<ProtectedRoute role="Volunteer"><VolunteerSheltersPage /></ProtectedRoute>} />
+            <Route path="/volunteer/announcements" element={<ProtectedRoute role="Volunteer"><VolunteerAnnouncementsPage /></ProtectedRoute>} />
+            <Route path="/volunteer/profile" element={<ProtectedRoute role="Volunteer"><VolunteerProfilePage /></ProtectedRoute>} />
+            <Route path="/volunteer/settings" element={<ProtectedRoute role="Volunteer"><VolunteerSettingsPage /></ProtectedRoute>} />
 
             {/* Stage 4 NGO Module Routes */}
-            <Route path="/ngo/dashboard" element={<NgoDashboard />} />
-            <Route path="/ngo/requests" element={<NgoRequestsPage />} />
-            <Route path="/ngo/requests/:id" element={<NgoRequestDetailsPage />} />
-            <Route path="/ngo/volunteers" element={<NgoVolunteersPage />} />
-            <Route path="/ngo/inventory" element={<NgoInventoryPage />} />
-            <Route path="/ngo/shelters" element={<NgoSheltersPage />} />
-            <Route path="/ngo/announcements" element={<NgoAnnouncementsPage />} />
-            <Route path="/ngo/profile" element={<NgoProfilePage />} />
-            <Route path="/ngo/settings" element={<NgoSettingsPage />} />
+            <Route path="/ngo/dashboard" element={<ProtectedRoute role="NGO"><NgoDashboard /></ProtectedRoute>} />
+            <Route path="/ngo/requests" element={<ProtectedRoute role="NGO"><NgoRequestsPage /></ProtectedRoute>} />
+            <Route path="/ngo/requests/:id" element={<ProtectedRoute role="NGO"><NgoRequestDetailsPage /></ProtectedRoute>} />
+            <Route path="/ngo/volunteers" element={<ProtectedRoute role="NGO"><NgoVolunteersPage /></ProtectedRoute>} />
+            <Route path="/ngo/inventory" element={<ProtectedRoute role="NGO"><NgoInventoryPage /></ProtectedRoute>} />
+            <Route path="/ngo/shelters" element={<ProtectedRoute role="NGO"><NgoSheltersPage /></ProtectedRoute>} />
+            <Route path="/ngo/announcements" element={<ProtectedRoute role="NGO"><NgoAnnouncementsPage /></ProtectedRoute>} />
+            <Route path="/ngo/profile" element={<ProtectedRoute role="NGO"><NgoProfilePage /></ProtectedRoute>} />
+            <Route path="/ngo/settings" element={<ProtectedRoute role="NGO"><NgoSettingsPage /></ProtectedRoute>} />
 
             {/* Stage 5 Government Module Routes */}
-            <Route path="/government/dashboard" element={<GovDashboard />} />
-            <Route path="/government/monitoring" element={<GovMonitoringPage />} />
-            <Route path="/government/requests" element={<GovRequestsPage />} />
-            <Route path="/government/coordination" element={<GovCoordinationPage />} />
-            <Route path="/government/shelters" element={<GovSheltersPage />} />
-            <Route path="/government/alerts" element={<GovAlertsPage />} />
-            <Route path="/government/reports" element={<GovReportsPage />} />
-            <Route path="/government/profile" element={<GovProfilePage />} />
-            <Route path="/government/settings" element={<GovSettingsPage />} />
+            <Route path="/government/dashboard" element={<ProtectedRoute role="Government Official"><GovDashboard /></ProtectedRoute>} />
+            <Route path="/government/monitoring" element={<ProtectedRoute role="Government Official"><GovMonitoringPage /></ProtectedRoute>} />
+            <Route path="/government/requests" element={<ProtectedRoute role="Government Official"><GovRequestsPage /></ProtectedRoute>} />
+            <Route path="/government/coordination" element={<ProtectedRoute role="Government Official"><GovCoordinationPage /></ProtectedRoute>} />
+            <Route path="/government/shelters" element={<ProtectedRoute role="Government Official"><GovSheltersPage /></ProtectedRoute>} />
+            <Route path="/government/alerts" element={<ProtectedRoute role="Government Official"><GovAlertsPage /></ProtectedRoute>} />
+            <Route path="/government/reports" element={<ProtectedRoute role="Government Official"><GovReportsPage /></ProtectedRoute>} />
+            <Route path="/government/profile" element={<ProtectedRoute role="Government Official"><GovProfilePage /></ProtectedRoute>} />
+            <Route path="/government/settings" element={<ProtectedRoute role="Government Official"><GovSettingsPage /></ProtectedRoute>} />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />

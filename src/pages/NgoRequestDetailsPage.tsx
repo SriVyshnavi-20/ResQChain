@@ -1,5 +1,5 @@
 import React from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, Navigate } from 'react-router-dom';
 import { NgoSidebar } from '../components/layout/NgoSidebar';
 import { NgoMobileNav } from '../components/layout/NgoMobileNav';
 import { Card } from '../components/common/Card';
@@ -19,22 +19,23 @@ import {
 
 export const NgoRequestDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { requests, fulfillRequest, openSosModal, showToast } = useAuth();
+  const { requests, fulfillRequest, dispatchConsignment, deployVolunteers, openSosModal, showToast } = useAuth();
   const navigate = useNavigate();
 
   const request = requests.find((r) => r.id === id) || requests[0];
+  if (!request) return <Navigate to="/ngo/requests" replace />;
 
   const handleDispatchConsignment = () => {
-    showToast(`Emergency supply consignment dispatched from Central Hub to ${request.location}.`);
+    dispatchConsignment(request.id);
   };
 
   const handleDeployVolunteers = () => {
-    showToast(`Dispatched field volunteer squad to assist ${request.victimName}.`);
+    deployVolunteers(request.id);
   };
 
-  const handleMarkFulfilled = () => {
-    fulfillRequest(request.id, 'Rations, clean drinking water and first aid delivered by Red Cross Relief Unit.');
-    navigate('/ngo/requests');
+  const handleMarkFulfilled = async () => {
+    const ok = await fulfillRequest(request.id, 'Rations, clean drinking water and first aid delivered by Red Cross Relief Unit.');
+    if (ok) navigate('/ngo/requests');
   };
 
   const handleContactCitizen = () => {
