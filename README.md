@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ResQChain: Disaster Response Platform (Full Stack)
 
 React + TypeScript + Tailwind frontend (unchanged design) with a new **Node.js / Express / SQLite** backend.
@@ -122,3 +123,7 @@ src/               React app (design unchanged)
   components/auth/ProtectedRoute.tsx
 scripts/api-test.mjs        end-to-end API checks
 ```
+=======
+# ResQChain
+ResQChain is a web-based disaster management platform designed to connect disaster victims, volunteers, NGOs, and government officials on a single platform. It helps victims report emergencies, submit SOS requests, locate nearby relief shelters, reserve shelter spaces, and track their requests.
+>>>>>>> 0803b3d8d51813b24336d1c13c98c40228ffcf88
