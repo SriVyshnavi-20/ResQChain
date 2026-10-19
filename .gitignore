@@ -1,5 +1,6 @@
+
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -7,34 +8,32 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
+# Dependencies and build output
 node_modules/
 dist/
+dist-ssr/
+*.local
+
+# Environment variables and secrets
 .env
 .env.*
 !.env.example
 
+# SQLite databases and temporary files
 server/data/*.sqlite
 server/data/*.sqlite-*
+server/data/*.db
+server/data/*.db-shm
+server/data/*.db-wal
+server/data/.jwt_secret
 
-# Editor directories and files
+# Editor settings
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-
-# ResQChain backend
-.env
-server/data/*.db
-server/data/*.db-shm
-server/data/*.db-wal
-server/data/.jwt_secret
